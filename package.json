@@ -4,10 +4,17 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "bluebird": "^2.9.30",
     "body-parser": "^1.13.1",
-    "express": "^4.12.4"
+    "express": "^4.12.4",
+    "knex": "^0.8.6",
+    "pg": "^4.4.0",
+    "xml2js": "^0.4.9"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "chai": "^3.0.0",
+    "mocha": "^2.2.5"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
