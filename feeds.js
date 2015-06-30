@@ -3,7 +3,7 @@ var config = require('./knexfile');
 var knex = require('knex')(config[env]);
 var Promise = require('bluebird');
 var parseString = Promise.promisify(require('xml2js').parseString);
-var http = require('http');
+var request = require('request');
 
 var feedsTableName = 'jmaxml_feeds';
 
@@ -12,19 +12,23 @@ function extractUUID(feedid) {
   return feedid.substring(colon + 1);
 }
 
-var downloadText = Promise.promisify(function(url, callback) {
-  var downloaded = '';
-  var req = http.get(url, function(res) {
-    res.setEncoding('utf8');
-    res.on('data', function(data) {
-      downloaded += data;
-    });
-    res.on('end', function() {
-      callback(void(0), downloaded);
+function downloadText(url) {
+  return new Promise(function(resolve, reject) {
+    var options = {
+      url: url,
+      encoding: 'utf8'
+    };
+    request(options, function(error, response, body) {
+      if (error) {
+        reject(error);
+      } else if (response.statusCode !== 200) {
+        reject(response.statusCode);
+      } else {
+        resolve(body);
+      }
     });
   });
-  req.on('error', function(err) { callback(err); });
-});
+};
 
 function extractContentURL(uuid, links) {
   return links.map(function(ln) {
@@ -38,61 +42,79 @@ function createTableIfNotExists() {
   return knex.schema.hasTable(feedsTableName).then(function(exists) {
     if (!exists) {
       return knex.schema.createTable(feedsTableName, function(table) {
-        table.uuid('uuid');
-        table.string('title');
-        table.timestamp('updated');
+        table.uuid('uuid').primary();
+        table.string('title').notNull();
+        table.timestamp('updated').notNull();
         table.string('author');
-        table.string('content');
         table.json('doc', true)
       });
     }
   });
 }
 
-function parse(xml) {
-  return parseString(xml).then(function(obj) {
-    var uuid = extractUUID(feed.id[0]);
-    var url = extractContentURL(uuid, feed.link);
-    return {
-      uuid: extractContentURL(feed.id[0]),
-      title: feed.title[0],
-      updated: new Date(feed.updated[0]),
-      author: feed.author[0],
-      content: feed.content[0],
-      doc_url: url
-    };
+function parseAtomEntries(xml) {
+  return parseString(xml).then(function(atom) {
+    var entries = atom.feed.entry;
+    return entries.map(function(entry) {
+      var uuid = extractUUID(entry.id[0]);
+      var url = extractContentURL(uuid, entry.link);
+      return {
+        uuid: uuid,
+        title: entry.title[0],
+        updated: new Date(entry.updated[0]),
+        author: entry.author[0],
+        doc_url: url
+      };
+    });
   });
 }
 
-function downloadDocument(feed) {
-  if (!feed.doc_url) {
+function downloadDocument(entry) {
+  if (!entry.doc_url) {
     return Promise.reject(new Error('feed has no valid url for content'));
   } else {
-    return downloadText(feed.doc_url).then(function(xml) {
+    return downloadText(entry.doc_url).then(function(xml) {
       return parseString(xml);
     }).then(function(doc) {
-      feed.doc = doc;
-      return feed;
+      entry.doc = doc;
+      return entry;
     });
   }
 }
 
-function save(feed) {
-  return createTableIfNotExists().then(function() {
-    return knex(feedsTableName).insert(feed);
+function loadEntry(entry) {
+  return downloadDocument(entry).then(function(entryWithDoc) {
+    return Promise.all([entryWithDoc, createTableIfNotExists()]);
+  }).spread(function(entry) {
+    return knex(feedsTableName).insert({
+      uuid: entry.uuid,
+      title: entry.title,
+      updated: entry.updated,
+      author: entry.author,
+      doc: entry.doc
+    });
   });
 }
 
-function download(xml) {
-  return parse(xml).then(function(feed) {
-    return downloadDocument(feed);
-  }).then(function(feed) {
-    return saveFeed(xml);
+function loadEntries(xml) {
+  return parseAtomEntries(xml).then(function(entries) {
+    return entries.map(function(entry) {
+      return loadEntry(entry);
+    }).reduce(function(prev, curr) {
+      return prev.then(function() {
+        console.log('Loaded: %j', {
+          title: prev.title,
+          updated: prev.updated,
+          author: prev.author,
+          doc_url: prev.doc_url
+        });
+        return curr;
+      });
+    });
   });
 }
 
 module.exports = {
-  save: save,
-  download: download
+  loadEntries: loadEntries
 };
 

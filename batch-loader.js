@@ -6,6 +6,16 @@ var uuid = require('node-uuid');
 var feeds = require('./feeds');
 
 var tasks = [];
+
+var xml = fs.readFileSync(process.argv[2], 'utf8');
+feeds.loadEntries(xml).then(function() {
+  process.exit();
+}).catch(function(err) {
+  console.error(err.stack);
+  process.exit();
+});
+
+/*
 for (var i = 2; i < process.argv.length; i += 2) {
   var title = process.argv[i];
   var filename = process.argv[i + 1];
@@ -29,7 +39,11 @@ for (var i = 2; i < process.argv.length; i += 2) {
   tasks.push(task);
 }
 
-Promise.all(tasks).then(function() {
+Promise.all(entries).then(function() {
+  process.exit();
+}).catch(function(err) {
+  console.error(err.stack);
   process.exit();
 });
 
+*/
