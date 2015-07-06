@@ -2,6 +2,7 @@ var config = require('./config.json');
 var express = require('express');
 var app = express();
 var bodyParser = require('body-parser');
+var feeds = require('./feeds');
 
 app.use(bodyParser.text({ type: 'application/atom+xml' }));
 
@@ -26,6 +27,11 @@ app.get('/weather-server/webhook', function(req, res) {
 app.post('/weather-server/webhook', function(req, res) {
   console.log('POST');
   console.log('body: %j', req.body);
+  feeds.loadEntries(req.body).then(function() {
+    console.log('Saved successfully');
+  }).catch(function(err) {
+    console.error(err.stack);
+  });
 });
 
 function onDenied(req, res) {
