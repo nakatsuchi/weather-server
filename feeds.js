@@ -99,7 +99,13 @@ function loadEntry(entry) {
 function loadEntries(xml) {
   return parseAtomEntries(xml).then(function(entries) {
     return entries.map(function(entry) {
-      return loadEntry(entry);
+      return knex(feedsTableName).count('uuid').where('uuid', entry.uuid).then(function(count) {
+        if (+count === 0) {
+          return loadEntry(entry);
+        } else {
+          console.info('The entry %s is already exist.', entry.uuid);
+        }
+      });
     }).reduce(function(prev, curr) {
       return prev.then(function() {
         console.log('Loaded: %j', {
