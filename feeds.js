@@ -62,7 +62,7 @@ function parseAtomEntries(xml) {
         uuid: uuid,
         title: entry.title[0],
         updated: new Date(entry.updated[0]),
-        author: entry.author[0].name,
+        author: entry.author[0].name[0],
         doc_url: url
       };
     });
