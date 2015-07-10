@@ -42,11 +42,12 @@ function createTableIfNotExists() {
   return knex.schema.hasTable(feedsTableName).then(function(exists) {
     if (!exists) {
       return knex.schema.createTable(feedsTableName, function(table) {
-        table.uuid('uuid').primary();
-        table.string('title').notNull();
+        table.uuid('uuid').notNull();
         table.timestamp('updated').notNull();
+        table.string('title').notNull();
         table.string('author');
-        table.json('doc', true)
+        table.json('doc', true);
+        table.primary(['uuid', 'updated']);
       });
     }
   });
@@ -99,7 +100,10 @@ function loadEntry(entry) {
 function loadEntries(xml) {
   return parseAtomEntries(xml).then(function(entries) {
     return entries.map(function(entry) {
-      return knex(feedsTableName).count('uuid').where('uuid', entry.uuid).then(function(count) {
+      return knex(feedsTableName).count('uuid')
+        .where('uuid', entry.uuid)
+        .andWhere('updated', entry.updated)
+        .then(function(count) {
         if (+count === 0) {
           return loadEntry(entry);
         } else {
