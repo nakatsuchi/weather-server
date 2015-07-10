@@ -83,7 +83,7 @@ function loadEntry(entry) {
 function loadEntries(xml) {
   return parseAtomEntries(xml).then(function(entries) {
     return entries.map(function(entry) {
-      return knex(feedsTableName).count('uuid')
+      return knex(feedsTableName).count('*')
         .where('uuid', entry.uuid)
         .andWhere('updated', entry.updated)
         .then(function(count) {
@@ -95,12 +95,6 @@ function loadEntries(xml) {
       });
     }).reduce(function(prev, curr) {
       return prev.then(function() {
-        console.log('Loaded: %j', {
-          title: prev.title,
-          updated: prev.updated,
-          author: prev.author,
-          doc_url: prev.doc_url
-        });
         return curr;
       });
     });
