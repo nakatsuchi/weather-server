@@ -38,21 +38,6 @@ function extractContentURL(uuid, links) {
   })[0];
 }
 
-function createTableIfNotExists() {
-  return knex.schema.hasTable(feedsTableName).then(function(exists) {
-    if (!exists) {
-      return knex.schema.createTable(feedsTableName, function(table) {
-        table.uuid('uuid').notNull();
-        table.timestamp('updated').notNull();
-        table.string('title').notNull();
-        table.string('author');
-        table.json('doc', true);
-        table.primary(['uuid', 'updated']);
-      });
-    }
-  });
-}
-
 function parseAtomEntries(xml) {
   return parseString(xml).then(function(atom) {
     var entries = atom.feed.entry;
@@ -85,14 +70,12 @@ function downloadDocument(entry) {
 
 function loadEntry(entry) {
   return downloadDocument(entry).then(function(entryWithDoc) {
-    return Promise.all([entryWithDoc, createTableIfNotExists()]);
-  }).spread(function(entry) {
     return knex(feedsTableName).insert({
-      uuid: entry.uuid,
-      title: entry.title,
-      updated: entry.updated,
-      author: entry.author,
-      doc: entry.doc
+      uuid: entryWithDoc.uuid,
+      title: entryWithDoc.title,
+      updated: entryWithDoc.updated,
+      author: entryWithDoc.author,
+      doc: entryWithDoc.doc
     });
   });
 }
