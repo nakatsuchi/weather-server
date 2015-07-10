@@ -87,7 +87,7 @@ function loadEntries(xml) {
         .where('uuid', entry.uuid)
         .andWhere('updated', entry.updated)
         .then(function(count) {
-        if (+count === 0) {
+        if (+count[0].count === 0) {
           return loadEntry(entry);
         } else {
           console.info('The entry %s is already exist.', entry.uuid);
