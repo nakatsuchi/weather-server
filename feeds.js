@@ -83,10 +83,7 @@ function loadEntry(entry) {
 function loadEntries(xml) {
   return parseAtomEntries(xml).then(function(entries) {
     return entries.map(function(entry) {
-      return knex(feedsTableName).count('*')
-        .where('uuid', entry.uuid)
-        .andWhere('updated', entry.updated)
-        .then(function(count) {
+      return knex(feedsTableName).count('*').where('uuid', entry.uuid).then(function(count) {
         if (+count[0].count === 0) {
           return loadEntry(entry);
         } else {
