@@ -1,11 +1,12 @@
 var env = process.env.NODE_ENV || 'development';
-var config = require('./knexfile');
-var knex = require('knex')(config[env]);
+var config = require('./config');
+var cassandra = require('cassandra-driver');
 var Promise = require('bluebird');
 var parseString = Promise.promisify(require('xml2js').parseString);
 var request = require('request');
 
 var feedsTableName = 'jmaxml_feeds';
+var client = Promise.promisifyAll(new cassandra.Client(config.database));
 
 function extractUUID(feedid) {
   var colon = feedid.lastIndexOf(':');
@@ -45,7 +46,7 @@ function parseAtomEntries(xml) {
       var uuid = extractUUID(entry.id[0]);
       var url = extractContentURL(uuid, entry.link);
       return {
-        uuid: uuid,
+        id: uuid,
         title: entry.title[0],
         updated: new Date(entry.updated[0]),
         author: entry.author[0].name[0],
@@ -69,25 +70,34 @@ function downloadDocument(entry) {
 }
 
 function loadEntry(entry) {
+  console.log('downloading entry: %s', entry.id);
   return downloadDocument(entry).then(function(entryWithDoc) {
-    return knex(feedsTableName).insert({
-      uuid: entryWithDoc.uuid,
-      title: entryWithDoc.title,
+    var cql =
+      'INSERT INTO jmaxml_feeds (id, updated, title, author, doc) ' +
+      'VALUES (?, ?, ?, ?, ?)';
+    var row = {
+      id: entryWithDoc.id,
       updated: entryWithDoc.updated,
+      title: entryWithDoc.title,
       author: entryWithDoc.author,
-      doc: entryWithDoc.doc
-    });
+      doc: JSON.stringify(entryWithDoc.doc)
+    };
+    return client.executeAsync(cql, row);
   });
 }
 
 function loadEntries(xml) {
   return parseAtomEntries(xml).then(function(entries) {
     return entries.map(function(entry) {
-      return knex(feedsTableName).count('*').where('uuid', entry.uuid).then(function(count) {
-        if (+count[0].count === 0) {
+      var cql =
+        'SELECT COUNT(*) FROM jmaxml_feeds ' +
+        'WHERE id = ? ' +
+        'LIMIT 1';
+      return client.executeAsync(cql, [entry.id]).then(function(result) {
+        if (+result.rows[0].count === 0) {
           return loadEntry(entry);
         } else {
-          console.info('The entry %s is already exist.', entry.uuid);
+          console.info('The entry %s is already exist.', entry.id);
         }
       });
     }).reduce(function(prev, curr) {

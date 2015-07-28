@@ -30,7 +30,7 @@ app.post('/weather-server/webhook', function(req, res) {
   feeds.loadEntries(req.body).then(function() {
     console.log('Saved successfully');
   }).catch(function(err) {
-    console.error(err.stack);
+    console.error(err);
   });
 });
 
